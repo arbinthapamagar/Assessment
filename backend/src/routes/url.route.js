@@ -4,7 +4,7 @@ import { rateLimiter } from '../middlewares/rateLimit.middleware.js';
 
 const router = Router();
 
-// only shorten needs rate limiting, no point adding it to read endpoints
+// only shorten needs rate limiting, 
 router.post('/shorten', rateLimiter, shortenUrl);
 router.get('/urls', getAllUrls);
 router.get('/analytics/:alias', getAnalytics);
