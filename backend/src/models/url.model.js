@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 
-// this is the main table that holds url <-> alias mapping
+// this stores the actual url and its short alias
 const urlSchema = new mongoose.Schema(
     {
         alias: {
@@ -13,7 +13,7 @@ const urlSchema = new mongoose.Schema(
             type: String,
             required: true,
         },
-        // keeping a running total here so i dont have to run count() every time the list loads
+        // keeping total here so i dont have to run aggregate every time the list loads
         totalClicks: {
             type: Number,
             default: 0,
@@ -22,8 +22,8 @@ const urlSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
-// separate doc per click so i can do the 7-day grouping easily in mongo aggregation
-// tried doing it with just an array on the url doc but querying was a pain
+// every click gets its own doc so querying by date is easy
+// tried using array on url doc first but quering was honestly painful
 const clickSchema = new mongoose.Schema(
     {
         alias: {
@@ -32,7 +32,7 @@ const clickSchema = new mongoose.Schema(
             index: true,
         },
     },
-    { timestamps: true } // createdAt is basically the click timestamp
+    { timestamps: true } // createdAt is the click time
 );
 
 export const Url = mongoose.model('Url', urlSchema);

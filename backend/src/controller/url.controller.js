@@ -4,8 +4,8 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { apiError } from '../utils/apiErrors.js';
 import { apiResponse } from '../utils/apiResponse.js';
 
-// sha256 then grab first 6 chars — same url always gives same alias which is nice
-// base64url so no +/= chars that would break the route
+// same url always gives same alias which is nice, no duplicates
+// base64url so we dont get weird chars like + or / in the url
 const generateAlias = (url) => {
     return crypto.createHash('sha256').update(url).digest('base64url').slice(0, 6);
 };
@@ -18,14 +18,14 @@ const shortenUrl = asyncHandler(async (req, res) => {
         throw new apiError(400, 'URL is required');
     }
 
-    // lazy but this is the easiest url validation without adding a library
+    // this is the easiest way to validate a url without adding a whole library for it
     try {
         new URL(url);
     } catch {
         throw new apiError(400, 'Invalid URL format');
     }
 
-    // if they already shortened this url just return what we have, no point creating a duplicate
+    // if we already have this url just return it, no point making a new one
     const existing = await Url.findOne({ originalUrl: url });
     if (existing) {
         return res.status(200).json(
@@ -39,8 +39,7 @@ const shortenUrl = asyncHandler(async (req, res) => {
 
     let alias = generateAlias(url);
 
-    // collision is super rare with 6 chars but handle it anyway
-    // just generate random ones until we find a free slot
+    // collision wont happen often but just in case two urls hash to the same 6 chars
     let conflict = await Url.findOne({ alias });
     let attempts = 0;
     while (conflict && attempts < 5) {
@@ -69,8 +68,8 @@ const redirectUrl = asyncHandler(async (req, res) => {
         throw new apiError(404, 'Short URL not found');
     }
 
-    // dont await these, just fire and forget so the redirect is instant
-    // if tracking fails its not the end of the world
+    // dont wait for these to finish, just redirect the user right away
+    // if tracking fails its fine, not worth slowing down the redirect for it
     Promise.all([
         Click.create({ alias }),
         Url.updateOne({ alias }, { $inc: { totalClicks: 1 } }),
@@ -81,7 +80,7 @@ const redirectUrl = asyncHandler(async (req, res) => {
 
 // GET /api/urls
 const getAllUrls = asyncHandler(async (req, res) => {
-    // newest first so the list doesnt feel stale
+    // newest first so you see what you just created at the top
     const urls = await Url.find({})
         .select('alias originalUrl totalClicks createdAt')
         .sort({ createdAt: -1 });
@@ -101,7 +100,7 @@ const getAnalytics = asyncHandler(async (req, res) => {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    // group by day string in mongo — way easier than doing it in js after the fact
+    // group by day in mongo, way less painful than doing it in js
     const clicks = await Click.aggregate([
         {
             $match: {
@@ -118,7 +117,7 @@ const getAnalytics = asyncHandler(async (req, res) => {
         { $sort: { _id: 1 } },
     ]);
 
-    // fill in zeros for days with no clicks so the chart always shows 7 bars
+    // fill zeros for days with no clicks otherwise the chart looks weird with gaps
     const dailyClicks = [];
     for (let i = 6; i >= 0; i--) {
         const d = new Date();

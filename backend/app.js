@@ -9,7 +9,7 @@ import { asyncHandler } from './src/utils/asyncHandler.js';
 
 const app = express();
 
-// only allow the frontend origin, dont want random sites hitting the api
+// only let the frontend hit the api, dont want randome sites calling it
 app.use(cors({
     origin: process.env.CORS_ORIGIN,
     credentials: true,
@@ -18,18 +18,17 @@ app.use(cors({
 app.use(express.json({ limit: '20kb' }));
 app.use(express.urlencoded({ extended: true, limit: '20kb' }));
 
-// helmet adds a bunch of security headers automatically, good to have
+// helmet handles all the security headers stuff automatically
 app.use(helmet());
 app.use(express.static('public'));
 app.use(cookieParser());
 
-// all the url shortener api stuff lives here
 app.use('/api', urlApiRouter);
 
-// redirect route has to come after /api otherwise it would catch /api/* too
+// this has to be after /api routes otherwise it would match /api/shorten as an alias
 app.get('/:alias', asyncHandler(redirectUrl));
 
-// catch any errors that bubble up and send a proper json response
+// catch errors and return proper json instead of html error pages
 app.use((err, req, res, next) => {
     const status = err.statusCode || 500;
     res.status(status).json({

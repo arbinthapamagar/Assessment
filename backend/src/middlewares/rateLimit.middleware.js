@@ -1,11 +1,11 @@
-// Fixed Window limiter — i chose this over sliding window because its simpler
-// and for this use case the edge case at window boundaries doesnt really matter
+// fixed window rate limiter, picked this over sliding window because its simpler
+// and honestly for 5 req per minute the edge case doesnt really matter
 
-// storing in memory for now, would need redis if we ever run multiple instances
+// in memory store, would need redis if we scale but for now this is fine
 const ipStore = new Map();
 
 const LIMIT = 5;
-const WINDOW_MS = 60 * 1000; // 1 min
+const WINDOW_MS = 60 * 1000; // 1 minute
 
 const rateLimiter = (req, res, next) => {
     const ip = req.ip || req.socket.remoteAddress;
@@ -13,7 +13,7 @@ const rateLimiter = (req, res, next) => {
 
     const entry = ipStore.get(ip);
 
-    // first time we see this ip, or their window expired — reset everything
+    // new ip or their window already expired so just reset
     if (!entry || now - entry.windowStart >= WINDOW_MS) {
         ipStore.set(ip, { count: 1, windowStart: now });
         return next();
@@ -24,10 +24,10 @@ const rateLimiter = (req, res, next) => {
         return next();
     }
 
-    // they hit the limit, tell them how long to wait
+    // hit the limit, calculate how many seconds left and tell them
     const retryAfter = Math.ceil((WINDOW_MS - (now - entry.windowStart)) / 1000);
 
-    res.set('Retry-After', String(retryAfter)); // standard header so clients can use it
+    res.set('Retry-After', String(retryAfter));
     return res.status(429).json({
         success: false,
         message: `Rate limit exceeded. Try again in ${retryAfter} seconds.`,
