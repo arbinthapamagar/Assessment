@@ -3,7 +3,7 @@ services:
     image: mongo:7
     volumes:
       - mongo-data:/data/db
-    # only exposed locally for debugging — not needed by other containers
+    # exposing this just so i can poke at the db locally, containers talk to it internally anyway
     ports:
       - "27017:27017"
 
