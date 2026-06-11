@@ -68,12 +68,9 @@ const redirectUrl = asyncHandler(async (req, res) => {
         throw new apiError(404, 'Short URL not found');
     }
 
-    // dont wait for these to finish, just redirect the user right away
-    // if tracking fails its fine, not worth slowing down the redirect for it
-    Promise.all([
-        Click.create({ alias }),
-        Url.updateOne({ alias }, { $inc: { totalClicks: 1 } }),
-    ]).catch((err) => console.error('click tracking broke:', err));
+    // save the click then bump the total count
+    await Click.create({ alias });
+    await Url.updateOne({ alias }, { $inc: { totalClicks: 1 } });
 
     return res.redirect(302, urlDoc.originalUrl);
 });

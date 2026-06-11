@@ -1,4 +1,4 @@
-*, *::before, *::after {
+* {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
@@ -6,8 +6,7 @@
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #f4f4f4;
-    color: #1a1a1a;
+    background: #0d0d0d;
+    color: #eee;
     line-height: 1.5;
-    -webkit-font-smoothing: antialiased;
 }

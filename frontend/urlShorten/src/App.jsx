@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -6,16 +6,15 @@ import {
     PointElement,
     LineElement,
     Tooltip,
-    Filler,
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import './App.css';
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler);
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip);
 
 const API = '/api';
 
-export default function App() {
+function App() {
     const [inputUrl, setInputUrl] = useState('');
     const [result, setResult] = useState(null);
     const [error, setError] = useState('');
@@ -28,39 +27,28 @@ export default function App() {
     const [analyticsLoading, setAnalyticsLoading] = useState(false);
     const [copied, setCopied] = useState(false);
 
-    const timerRef = useRef(null);
-
+    // load the url list when page opens
     useEffect(() => {
         fetchUrls();
     }, []);
 
-    // cleanup countdown timer on unmount
+    // countdown ticker, runs again every time countdown changes
     useEffect(() => {
-        return () => clearInterval(timerRef.current);
-    }, []);
+        if (countdown <= 0) return;
+        const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+        return () => clearTimeout(timer);
+    }, [countdown]);
 
     const fetchUrls = async () => {
         try {
             const res = await fetch(`${API}/urls`);
             const data = await res.json();
-            if (data.success) setUrls(data.data);
+            if (data.success) {
+                setUrls(data.data);
+            }
         } catch (err) {
-            console.error('Failed to load URLs:', err);
+            console.error('couldnt load urls', err);
         }
-    };
-
-    const startCountdown = (seconds) => {
-        setCountdown(seconds);
-        clearInterval(timerRef.current);
-        timerRef.current = setInterval(() => {
-            setCountdown((prev) => {
-                if (prev <= 1) {
-                    clearInterval(timerRef.current);
-                    return 0;
-                }
-                return prev - 1;
-            });
-        }, 1000);
     };
 
     const handleShorten = async (e) => {
@@ -80,8 +68,9 @@ export default function App() {
 
             const data = await res.json();
 
+            // rate limited, start the countdown so user knows when to retry
             if (res.status === 429) {
-                startCountdown(data.retryAfter || 60);
+                setCountdown(data.retryAfter || 60);
                 setError(data.message);
                 return;
             }
@@ -110,35 +99,35 @@ export default function App() {
     const loadAnalytics = async (alias) => {
         setSelectedAlias(alias);
         setAnalyticsLoading(true);
-        setAnalytics(null);
         try {
             const res = await fetch(`${API}/analytics/${alias}`);
             const data = await res.json();
-            if (data.success) setAnalytics(data.data);
+            if (data.success) {
+                setAnalytics(data.data);
+            }
         } catch (err) {
-            console.error('Analytics fetch failed:', err);
+            console.error('analytics fetch failed', err);
         } finally {
             setAnalyticsLoading(false);
         }
     };
 
-    const chartData = analytics
-        ? {
-              labels: analytics.dailyClicks.map((d) => d.date.slice(5)), // MM-DD is enough
-              datasets: [
-                  {
-                      label: 'Clicks',
-                      data: analytics.dailyClicks.map((d) => d.count),
-                      borderColor: '#2563eb',
-                      backgroundColor: 'rgba(37, 99, 235, 0.07)',
-                      tension: 0.35,
-                      fill: true,
-                      pointRadius: 4,
-                      pointHoverRadius: 6,
-                  },
-              ],
-          }
-        : null;
+    // build chart data only when we actually have analytics
+    let chartData = null;
+    if (analytics) {
+        chartData = {
+            labels: analytics.dailyClicks.map((d) => d.date.slice(5)),
+            datasets: [
+                {
+                    label: 'Clicks',
+                    data: analytics.dailyClicks.map((d) => d.count),
+                    borderColor: '#ff6b1a',
+                    backgroundColor: '#ff6b1a',
+                    tension: 0.3,
+                },
+            ],
+        };
+    }
 
     const chartOptions = {
         responsive: true,
@@ -146,137 +135,112 @@ export default function App() {
         scales: {
             y: {
                 beginAtZero: true,
-                ticks: { stepSize: 1, precision: 0 },
-                grid: { color: '#f0f0f0' },
+                ticks: { stepSize: 1, color: '#888' },
+                grid: { color: '#222' },
             },
-            x: { grid: { display: false } },
+            x: {
+                ticks: { color: '#888' },
+                grid: { display: false },
+            },
         },
     };
 
     return (
         <div className="app">
             <header className="header">
-                <h1>URL Shortener</h1>
-                <p>Shorten links and track clicks over time.</p>
+                <h1>URL<span className="accent">Short</span></h1>
+                <p>shorten links, track clicks</p>
             </header>
 
-            <main className="main">
-                {/* ── shorten section ── */}
-                <section className="card">
-                    <h2>Shorten a URL</h2>
+            <section className="card">
+                <h2>Shorten a URL</h2>
 
-                    <form onSubmit={handleShorten} className="shorten-form">
-                        <input
-                            type="text"
-                            value={inputUrl}
-                            onChange={(e) => setInputUrl(e.target.value)}
-                            placeholder="https://example.com/very/long/link"
-                            disabled={countdown > 0 || loading}
-                        />
-                        <button
-                            type="submit"
-                            disabled={loading || countdown > 0 || !inputUrl.trim()}
-                        >
-                            {loading ? 'Working…' : 'Shorten'}
-                        </button>
-                    </form>
+                <form onSubmit={handleShorten} className="shorten-form">
+                    <input
+                        type="text"
+                        value={inputUrl}
+                        onChange={(e) => setInputUrl(e.target.value)}
+                        placeholder="https://example.com/some/long/link"
+                        disabled={countdown > 0 || loading}
+                    />
+                    <button type="submit" disabled={loading || countdown > 0 || !inputUrl.trim()}>
+                        {loading ? '...' : 'Shorten'}
+                    </button>
+                </form>
 
-                    {/* rate limit countdown */}
-                    {countdown > 0 && (
-                        <div className="notice notice--warn">
-                            Rate limit reached. Try again in{' '}
-                            <strong>{countdown}s</strong>
-                        </div>
-                    )}
+                {countdown > 0 && (
+                    <div className="notice notice-warn">
+                        Rate limit hit. Try again in <strong>{countdown}s</strong>
+                    </div>
+                )}
 
-                    {error && countdown === 0 && (
-                        <div className="notice notice--error">{error}</div>
-                    )}
+                {error && countdown === 0 && (
+                    <div className="notice notice-error">{error}</div>
+                )}
 
-                    {result && (
-                        <div className="result">
-                            <a
-                                href={result.shortUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="result-link"
-                            >
-                                {result.shortUrl}
-                            </a>
-                            <button
-                                className="btn-copy"
-                                onClick={() => copyLink(result.shortUrl)}
-                            >
-                                {copied ? 'Copied!' : 'Copy'}
-                            </button>
-                        </div>
-                    )}
-                </section>
-
-                {/* ── analytics section ── */}
-                <section className="card">
-                    <div className="section-header">
-                        <h2>Analytics</h2>
-                        <button className="btn-ghost" onClick={fetchUrls}>
-                            Refresh list
+                {result && (
+                    <div className="result">
+                        <a href={result.shortUrl} target="_blank" rel="noreferrer">
+                            {result.shortUrl}
+                        </a>
+                        <button onClick={() => copyLink(result.shortUrl)}>
+                            {copied ? 'copied!' : 'copy'}
                         </button>
                     </div>
+                )}
+            </section>
 
-                    {urls.length === 0 ? (
-                        <p className="muted">No URLs yet. Shorten something above.</p>
-                    ) : (
-                        <div className="analytics-layout">
-                            {/* URL list */}
-                            <ul className="url-list">
-                                {urls.map((u) => (
-                                    <li
-                                        key={u.alias}
-                                        className={`url-item ${selectedAlias === u.alias ? 'url-item--active' : ''}`}
-                                        onClick={() => loadAnalytics(u.alias)}
-                                    >
-                                        <span className="url-alias">/{u.alias}</span>
-                                        <span className="url-clicks">
-                                            {u.totalClicks} click{u.totalClicks !== 1 ? 's' : ''}
-                                        </span>
-                                        <span className="url-original">{u.originalUrl}</span>
-                                    </li>
-                                ))}
-                            </ul>
+            <section className="card">
+                <div className="section-top">
+                    <h2>Analytics</h2>
+                    <button className="btn-outline" onClick={fetchUrls}>
+                        Refresh
+                    </button>
+                </div>
 
-                            {/* chart pane */}
-                            <div className="chart-pane">
-                                {!selectedAlias && (
-                                    <p className="muted">Select a URL to see its click data.</p>
-                                )}
+                {urls.length === 0 ? (
+                    <p className="muted">nothing here yet, shorten a url first</p>
+                ) : (
+                    <div className="dash">
+                        <ul className="url-list">
+                            {urls.map((u) => (
+                                <li
+                                    key={u.alias}
+                                    className={selectedAlias === u.alias ? 'active' : ''}
+                                    onClick={() => loadAnalytics(u.alias)}
+                                >
+                                    <span className="alias">/{u.alias}</span>
+                                    <span className="clicks">{u.totalClicks} clicks</span>
+                                    <span className="orig">{u.originalUrl}</span>
+                                </li>
+                            ))}
+                        </ul>
 
-                                {analyticsLoading && (
-                                    <p className="muted">Loading…</p>
-                                )}
+                        <div className="chart-area">
+                            {!selectedAlias && <p className="muted">pick a url to see the chart</p>}
+                            {analyticsLoading && <p className="muted">loading...</p>}
 
-                                {!analyticsLoading && analytics && (
-                                    <>
-                                        <div className="chart-meta">
-                                            <span className="chart-alias">
-                                                /{analytics.alias}
-                                            </span>
-                                            <span className="muted">
-                                                {analytics.totalClicks} total clicks
-                                            </span>
-                                            <button
-                                                className="btn-ghost"
-                                                onClick={() => loadAnalytics(selectedAlias)}
-                                            >
-                                                Refresh chart
-                                            </button>
-                                        </div>
-                                        <Line data={chartData} options={chartOptions} />
-                                    </>
-                                )}
-                            </div>
+                            {!analyticsLoading && analytics && selectedAlias && (
+                                <>
+                                    <div className="chart-top">
+                                        <span className="alias">/{analytics.alias}</span>
+                                        <span className="muted">{analytics.totalClicks} total</span>
+                                        <button
+                                            className="btn-outline"
+                                            onClick={() => loadAnalytics(selectedAlias)}
+                                        >
+                                            Refresh
+                                        </button>
+                                    </div>
+                                    <Line data={chartData} options={chartOptions} />
+                                </>
+                            )}
                         </div>
-                    )}
-                </section>
-            </main>
+                    </div>
+                )}
+            </section>
         </div>
     );
 }
+
+export default App;
