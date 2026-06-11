@@ -3,51 +3,40 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import helmet from 'helmet';
 
+import urlApiRouter from './src/routes/url.route.js';
+import { redirectUrl } from './src/controller/url.controller.js';
+import { asyncHandler } from './src/utils/asyncHandler.js';
+
 const app = express();
 
-// here i use the cors orign because i just want to give the specific url the access
-
-app.use(
-  cors({
+// only allow the frontend origin, dont want random sites hitting the api
+app.use(cors({
     origin: process.env.CORS_ORIGIN,
     credentials: true,
-  }),
-);
+}));
 
-// here i wana convert all the json file into the javascript object
-app.use(
-  express.json({
-    limit: '20kb',
-  }),
-);
+app.use(express.json({ limit: '20kb' }));
+app.use(express.urlencoded({ extended: true, limit: '20kb' }));
 
-// this will let me help in the getting the form value nicely and in format and readable
-app.use(
-  express.urlencoded({
-    extended: true,
-    limit: '20kb',
-  }),
-);
-// using the helmet
-
+// helmet adds a bunch of security headers automatically, good to have
 app.use(helmet());
-
-// make the public folder accessable only needed if the image are in the public folder if i use cloudinary i dont need this because the image will be in the cloud and i will get the url of the image and save it in the database and use it when i need to show the image
 app.use(express.static('public'));
-
-// using the cookieparser for the data reciving from the cookie and make it in the format of the javascript object
 app.use(cookieParser());
 
+// all the url shortener api stuff lives here
+app.use('/api', urlApiRouter);
 
+// redirect route has to come after /api otherwise it would catch /api/* too
+app.get('/:alias', asyncHandler(redirectUrl));
 
-
-//routes import here **************************
-// import { adminRouter } from './src/routes/admin.route.js';
-
-
-// route decleration
-
-// app.use('/api/v1/admin', adminRouter);
-
+// catch any errors that bubble up and send a proper json response
+app.use((err, req, res, next) => {
+    const status = err.statusCode || 500;
+    res.status(status).json({
+        success: false,
+        message: err.message || 'Internal Server Error',
+        errors: err.errors || [],
+    });
+});
 
 export default app;

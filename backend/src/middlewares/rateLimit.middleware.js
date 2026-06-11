@@ -1,41 +1,38 @@
-// rateLimiter.js
-import { apiError } from '../utils/apiError.js';
+// Fixed Window limiter — i chose this over sliding window because its simpler
+// and for this use case the edge case at window boundaries doesnt really matter
 
-// in-memory store: IP -> { count, windowStart }
+// storing in memory for now, would need redis if we ever run multiple instances
 const ipStore = new Map();
 
-const LIMIT = 5;              // max requests
-const WINDOW_MS = 60 * 1000; // per 1 minute
+const LIMIT = 5;
+const WINDOW_MS = 60 * 1000; // 1 min
 
 const rateLimiter = (req, res, next) => {
-  const ip = req.ip;
-  const now = Date.now();
+    const ip = req.ip || req.socket.remoteAddress;
+    const now = Date.now();
 
-  const entry = ipStore.get(ip);
+    const entry = ipStore.get(ip);
 
-  // first request from this IP, or the old window has expired
-  if (!entry || now - entry.windowStart >= WINDOW_MS) {
-    ipStore.set(ip, { count: 1, windowStart: now });
-    return next();
-  }
+    // first time we see this ip, or their window expired — reset everything
+    if (!entry || now - entry.windowStart >= WINDOW_MS) {
+        ipStore.set(ip, { count: 1, windowStart: now });
+        return next();
+    }
 
-  // still inside the window, under the limit
-  if (entry.count < LIMIT) {
-    entry.count++;
-    return next();
-  }
+    if (entry.count < LIMIT) {
+        entry.count++;
+        return next();
+    }
 
-  // limit hit — seconds left until the window resets
-  const elapsed = now - entry.windowStart;
-  const retryAfter = Math.ceil((WINDOW_MS - elapsed) / 1000);
+    // they hit the limit, tell them how long to wait
+    const retryAfter = Math.ceil((WINDOW_MS - (now - entry.windowStart)) / 1000);
 
-  res.set('Retry-After', String(retryAfter));
-
-  throw new apiError(
-    429,
-    `Rate limit exceeded. Try again in ${retryAfter} seconds.`,
-    [{ retryAfter }]
-  );
+    res.set('Retry-After', String(retryAfter)); // standard header so clients can use it
+    return res.status(429).json({
+        success: false,
+        message: `Rate limit exceeded. Try again in ${retryAfter} seconds.`,
+        retryAfter,
+    });
 };
 
 export { rateLimiter };
