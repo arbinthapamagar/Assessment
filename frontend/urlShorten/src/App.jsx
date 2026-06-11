@@ -209,7 +209,7 @@ function App() {
                                     className={selectedAlias === u.alias ? 'active' : ''}
                                     onClick={() => loadAnalytics(u.alias)}
                                 >
-                                    <span className="alias">/{u.alias}</span>
+                                    <span className="alias">{u.alias}</span>
                                     <span className="clicks">{u.totalClicks} clicks</span>
                                     <span className="orig">{u.originalUrl}</span>
                                 </li>
@@ -223,7 +223,7 @@ function App() {
                             {!analyticsLoading && analytics && selectedAlias && (
                                 <>
                                     <div className="chart-top">
-                                        <span className="alias">/{analytics.alias}</span>
+                                        <span className="alias">{analytics.alias}</span>
                                         <span className="muted">{analytics.totalClicks} total</span>
                                         <button
                                             className="btn-outline"

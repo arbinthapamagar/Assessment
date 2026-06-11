@@ -5,9 +5,9 @@ import { apiError } from '../utils/apiErrors.js';
 import { apiResponse } from '../utils/apiResponse.js';
 
 // same url always gives same alias which is nice, no duplicates
-// base64url so we dont get weird chars like + or / in the url
+// hex so the alias is only letters and numbers, no weird url chars
 const generateAlias = (url) => {
-    return crypto.createHash('sha256').update(url).digest('base64url').slice(0, 6);
+    return crypto.createHash('sha256').update(url).digest('hex').slice(0, 6);
 };
 
 // POST /api/shorten
@@ -43,7 +43,7 @@ const shortenUrl = asyncHandler(async (req, res) => {
     let conflict = await Url.findOne({ alias });
     let attempts = 0;
     while (conflict && attempts < 5) {
-        alias = crypto.randomBytes(4).toString('base64url').slice(0, 6);
+        alias = crypto.randomBytes(3).toString('hex');
         conflict = await Url.findOne({ alias });
         attempts++;
     }
